@@ -1,0 +1,12 @@
+{
+    "name": "d-svm",
+    "authors": [
+        "karita"
+    ],
+    "description": "minimal svm",
+    "copyright": "Copyright © 2017, karita",
+    "license": "Boost",
+    "dependencies": {
+        "mir": "~>0.22.0"
+    }
+}
