@@ -31,7 +31,7 @@ public:
     this.errors = zeros(nsamples);
 
     bool isAll = true;
-    foreach (size_t n; iota(maxIter)) {
+    foreach (_; iota(maxIter)) {
       size_t nchanged = 0;
       foreach (i, a; multipliers) {
         if (isAll || (torlerance < a && a < penalty - torlerance)) {
