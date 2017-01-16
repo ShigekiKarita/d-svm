@@ -17,14 +17,14 @@ public:
 
   void fit(Real[] inputs, Real[] outputs, size_t nsamples, size_t ndim,
            Real penalty=1.0, Real tolerance=1e-3, int maxIter=1000, bool isLinear=true) {
-    this.torlerance = torlerance;
+    this.multTolerance = multTolerance;
     this.penalty = penalty;
     this.isLinear = isLinear;
+    this.nsamples = nsamples;
     this.ndim = ndim;
     this.trainInputs = inputs;
+    this.trainOutputs = outputs;
 
-    auto xs = inputs.sliced(nsamples, ndim);
-    auto ys = outputs.sliced(nsamples);
     this.multipliers = zeros(nsamples);
     this.weights = zeros(nsamples);
     this.bias = 0.0;
@@ -34,8 +34,8 @@ public:
     foreach (_; iota(maxIter)) {
       size_t nchanged = 0;
       foreach (i, a; multipliers) {
-        if (isAll || (torlerance < a && a < penalty - torlerance)) {
-          nchanged += countUpdate(i);
+        if (isAll || (multTolerance < a && a < penalty - multTolerance)) {
+          nchanged += updateSMO(i);
         }
       }
       if (isAll) {
@@ -53,7 +53,7 @@ public:
     }
     // get a weight vector
     foreach (i; svIndices) {
-      weights[i] = ys[i] * multipliers[i];
+      weights[i] = outputs[i] * multipliers[i];
     }
   }
 
@@ -66,16 +66,40 @@ public:
 
 private:
   Real penalty = 1.0;
-  Real torlerance = 1e-3;
+  Real multTolerance = 1e-3;
+  Real kktTolerance = 1e-3;
   bool isLinear = true;
   Real[] weights, multipliers, errors;
   Real bias;
   size_t[] svIndices;
-  size_t ndim;
-  Real[] trainInputs;
+  size_t nsamples, ndim;
+  Real[] trainInputs, trainOutputs;
 
-  size_t countUpdate(size_t i) {
-    // TODO step SMO
+  auto xs() {
+    return this.trainInputs.sliced(nsamples, ndim);
+  }
+
+  bool isKKT(size_t i) {
+    auto a = multipliers[i];
+    auto e = (multTolerance < a && a < (penalty - multTolerance))
+      ? errors[i]
+      : f(i) - trainOutputs[i];
+    
+    auto yfi = e * trainOutputs[i];      // yf(x)-1
+    return (a < (penalty - multTolerance) && yfi < -kktTolerance) || (a > multTolerance && yfi > kktTolerance);
+  }
+
+  double f(const size_t i) {
+    auto svs = iota(trainInputs.length).filter!(j => multipliers[j] == 0.0);
+    return svs.map!(j => multipliers[j] * trainOutputs[j] * dotProduct(xs[j], xs[i])).sum - bias;
+  }
+
+  size_t updateSMO(size_t i) {
+    if (isKKT(i)) {
+      // TODO: impl SMO
+      return 0;
+    }
+
     return 0;
   }
 }
