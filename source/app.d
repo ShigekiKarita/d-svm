@@ -1,5 +1,5 @@
 import std.array : array;
-import std.range : iota, repeat, enumerate;
+import std.range : iota, repeat, enumerate, generate;
 import std.conv : to;
 import std.numeric : dotProduct;
 import std.algorithm;
@@ -15,15 +15,15 @@ public:
     return repeat(0.to!T, n).array;
   }
 
-  void fit(Real[] inputs, Real[] outputs, size_t nsamples, size_t ndim,
+  void fit(Real* inputs, Real* outputs, size_t nsamples, size_t ndim,
            Real penalty=1.0, Real tolerance=1e-3, int maxIter=1000, bool isLinear=true) {
     this.multTolerance = multTolerance;
     this.penalty = penalty;
     this.isLinear = isLinear;
     this.nsamples = nsamples;
     this.ndim = ndim;
-    this.trainInputs = inputs;
-    this.trainOutputs = outputs;
+    this.trainInputs = inputs[0 .. nsamples * ndim];
+    this.trainOutputs = outputs[0 .. nsamples];
 
     this.multipliers = zeros(nsamples);
     this.weights = zeros(nsamples);
@@ -84,13 +84,12 @@ private:
     auto e = (multTolerance < a && a < (penalty - multTolerance))
       ? errors[i]
       : f(i) - trainOutputs[i];
-    
     auto yfi = e * trainOutputs[i];      // yf(x)-1
     return (a < (penalty - multTolerance) && yfi < -kktTolerance) || (a > multTolerance && yfi > kktTolerance);
   }
 
   double f(const size_t i) {
-    auto svs = iota(trainInputs.length).filter!(j => multipliers[j] == 0.0);
+    auto svs = iota(this.nsamples).filter!(j => (multipliers[j] == 0.0));
     return svs.map!(j => multipliers[j] * trainOutputs[j] * dotProduct(xs[j], xs[i])).sum - bias;
   }
 
@@ -104,8 +103,44 @@ private:
   }
 }
 
+import std.range;
+import mir.random;
+import std.typecons;
+import mir.random.algorithm;
+import mir.random.engine.xorshift;
+import mir.random.variable;
+
+import std.math;
+auto randNormal(S ...)(S shape) {
+  auto len = [shape].fold!((a, b) => a * b);
+  auto rng = Random(unpredictableSeed);
+  return rng
+    .range(NormalVariable!double(0, 1))
+    .take(len)
+    .array.sliced(shape);
+}
+
+auto randBin(S ...)(S shape) {
+  auto len = [shape].fold!((a, b) => a * b);
+  auto rng = Random(unpredictableSeed);
+  return rng
+    .range(Bernoulli2Variable.init)
+    .take(len)
+    .map!(a => a.sgn!double * 2 - 1)
+    .array.sliced(shape);
+}
+
+
 void main()
 {
   auto svm = new SVM;
-	writeln("Edit source/app.d to start your project.");
+
+  auto nsamples = 3;
+  auto ndim = 4;
+  auto xs = randNormal(nsamples, ndim);
+  auto ys = randBin(nsamples);
+  xs.writeln;
+  ys.writeln;
+
+  svm.fit(xs.ptr, ys.ptr, nsamples, ndim);
 }
