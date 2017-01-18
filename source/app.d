@@ -1,11 +1,17 @@
 import std.array : array;
-import std.range : iota, repeat, enumerate, generate;
+import std.range : iota, repeat, enumerate, generate, take;
 import std.conv : to;
 import std.numeric : dotProduct;
-import std.algorithm;
-import std.stdio;
+import std.variant : Algebraic;
+import std.algorithm : map, sum, filter, fold;
+import std.math : fabs, sgn;
+import std.stdio : writeln, writef;
 
-import mir.ndslice;
+import mir.ndslice : Slice, sliced;
+import mir.random : unpredictableSeed, Random;
+import mir.random.algorithm : range;
+import mir.random.variable : Bernoulli2Variable, UniformVariable, NormalVariable;
+
 
 class SVM {
 public:
@@ -15,27 +21,33 @@ public:
     return repeat(0.to!T, n).array;
   }
 
-  void fit(Real* inputs, Real* outputs, size_t nsamples, size_t ndim,
-           Real penalty=1.0, Real tolerance=1e-3, int maxIter=1000, bool isLinear=true) {
-    this.multTolerance = multTolerance;
-    this.penalty = penalty;
-    this.isLinear = isLinear;
+  this(Slice!(2, Real*) inputs, Slice!(1, Real*) outputs, ulong seed=unpredictableSeed) {
+    this(inputs.ptr, outputs.ptr, inputs.shape[0], inputs.shape[1], seed);
+  }
+
+  this(Real* inputs, Real* outputs, size_t nsamples, size_t ndim, ulong seed=unpredictableSeed) {
+    this.rng = Random(seed);
     this.nsamples = nsamples;
     this.ndim = ndim;
     this.trainInputs = inputs[0 .. nsamples * ndim];
     this.trainOutputs = outputs[0 .. nsamples];
-
     this.multipliers = zeros(nsamples);
     this.weights = zeros(nsamples);
     this.bias = 0.0;
     this.errors = zeros(nsamples);
+  }
+
+  void fit(Real penalty=1.0, Real tolerance=1e-3, int maxIter=1000, bool isLinear=true) {
+    this.multTolerance = multTolerance;
+    this.penalty = penalty;
+    this.isLinear = isLinear;
 
     bool isAll = true;
     foreach (_; iota(maxIter)) {
       size_t nchanged = 0;
       foreach (i, a; multipliers) {
-        if (isAll || (multTolerance < a && a < penalty - multTolerance)) {
-          nchanged += updateSMO(i);
+        if (isAll || insidePenalty(a)) {
+          if (update(i)) { ++nchanged; }
         }
       }
       if (isAll) {
@@ -44,6 +56,7 @@ public:
       } else if (nchanged == 0) {
         isAll = true;
       }
+      writef("%d,", nchanged);
     }
 
     // get support vectors
@@ -53,7 +66,7 @@ public:
     }
     // get a weight vector
     foreach (i; svIndices) {
-      weights[i] = outputs[i] * multipliers[i];
+      weights[i] = trainOutputs[i] * multipliers[i];
     }
   }
 
@@ -65,52 +78,101 @@ public:
 
 
 private:
+  // settings
+  const size_t nsamples, ndim;
+  const Real[] trainInputs, trainOutputs;
   Real penalty = 1.0;
   Real multTolerance = 1e-3;
   Real kktTolerance = 1e-3;
   bool isLinear = true;
+  Random rng;
+
+  // to be learned
   Real[] weights, multipliers, errors;
   Real bias;
   size_t[] svIndices;
-  size_t nsamples, ndim;
-  Real[] trainInputs, trainOutputs;
 
   auto xs() {
     return this.trainInputs.sliced(nsamples, ndim);
   }
 
-  bool isKKT(size_t i) {
-    auto a = multipliers[i];
-    auto e = (multTolerance < a && a < (penalty - multTolerance))
-      ? errors[i]
-      : f(i) - trainOutputs[i];
-    auto yfi = e * trainOutputs[i];      // yf(x)-1
-    return (a < (penalty - multTolerance) && yfi < -kktTolerance) || (a > multTolerance && yfi > kktTolerance);
+  bool insidePenalty(Real multiplier) {
+    return multTolerance < multiplier && multiplier < (penalty - multTolerance);
   }
 
-  double f(const size_t i) {
+  bool needToOptimize(Real multiplier, Real yfi) {
+    return // check KKT condition
+      (multiplier < (penalty - multTolerance) && yfi < -kktTolerance) ||
+      (multiplier > multTolerance             && yfi > kktTolerance);
+  }
+
+  auto f(const size_t i) {
     auto svs = iota(this.nsamples).filter!(j => (multipliers[j] == 0.0));
     return svs.map!(j => multipliers[j] * trainOutputs[j] * dotProduct(xs[j], xs[i])).sum - bias;
   }
 
-  size_t updateSMO(size_t i) {
-    if (isKKT(i)) {
-      // TODO: impl SMO
-      return 0;
-    }
+  size_t randomIndex() {
+    return UniformVariable!size_t(0, nsamples - 1)(rng);
+  }
 
-    return 0;
+  auto randomIndices() {
+    const off = randomIndex();
+    return iota(nsamples).map!(i => (i + off) % nsamples);
+  }
+
+  alias MaybeIndex = Algebraic!(bool, size_t);
+
+  auto randomSearchMaxErrorIndex(Real error) {
+    Real maxdiff = -Real.infinity;
+    MaybeIndex resultIndex;
+    foreach(i; randomIndices) {
+      const mi = multipliers[i];
+      if (insidePenalty(mi)) {
+        const diff = fabs(errors[i] - error);
+        if (diff > maxdiff) {
+          maxdiff = diff;
+          resultIndex = i;
+        }
+      }
+    }
+    return resultIndex;
+  }
+
+  bool update(size_t i) {
+    const mi = multipliers[i];
+    const ei = insidePenalty(mi) ? errors[i] : f(i) - trainOutputs[i];
+    const yfi = ei * trainOutputs[i];
+    if (needToOptimize(mi, yfi)) { return optimize(i, ei); }
+    return false;
+  }
+
+  bool optimize(size_t i, Real ei) {
+    const imax = randomSearchMaxErrorIndex(ei);
+    if (imax.hasValue && stepSMO(i, *imax.peek!size_t)) {
+      return true;
+    }
+    foreach (j; randomIndices) {
+      if (insidePenalty(multipliers[j]) && stepSMO(i, j)) {
+        return true;
+      }
+    }
+    foreach (j; randomIndices) {
+      if (!insidePenalty(multipliers[j]) && stepSMO(i, j)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool stepSMO(size_t i, size_t j) {
+    // TODO: impl SMO
+    if (i == j) { return false; }
+
+    return true;
   }
 }
 
-import std.range;
-import mir.random;
-import std.typecons;
-import mir.random.algorithm;
-import mir.random.engine.xorshift;
-import mir.random.variable;
 
-import std.math;
 auto randNormal(S ...)(S shape) {
   auto len = [shape].fold!((a, b) => a * b);
   auto rng = Random(unpredictableSeed);
@@ -133,8 +195,6 @@ auto randBin(S ...)(S shape) {
 
 void main()
 {
-  auto svm = new SVM;
-
   auto nsamples = 3;
   auto ndim = 4;
   auto xs = randNormal(nsamples, ndim);
@@ -142,5 +202,6 @@ void main()
   xs.writeln;
   ys.writeln;
 
-  svm.fit(xs.ptr, ys.ptr, nsamples, ndim);
+  auto svm = new SVM(xs, ys);
+  svm.fit();
 }
