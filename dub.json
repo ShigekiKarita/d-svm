@@ -8,5 +8,6 @@
     "license": "Boost",
     "dependencies": {
         "mir": "~>0.22.0"
-    }
+    },
+    "importPaths": ["./source"],
 }
