@@ -1,6 +1,6 @@
 import std.variant : Algebraic;
 import std.range : iota, enumerate, generate, take;
-import std.algorithm : map, sum, filter, fold;
+import std.algorithm : map, sum, filter;
 import std.math : fabs;
 import std.stdio : writeln, writef;
 
@@ -12,17 +12,15 @@ import mir.random.variable : Bernoulli2Variable, UniformVariable, NormalVariable
 import std.algorithm;
 import std.math : fabs;
 
-import svm;
+import svm : SVM;
 
 
-class SMO : SVM {
-  this(Slice!(2, Real*) inputs, Slice!(1, Real*) outputs, ulong seed=unpredictableSeed) {
-    this.rng = Random(seed);
-    super(inputs.ptr, outputs.ptr, inputs.shape[0], inputs.shape[1]);
+class SMO(alias kernel, Real = double) : SVM!(kernel, Real) {
+  this(Args ...)(Args args) {
+    super(args);
   }
 
-
-  void fit(Real penalty=1.0, Real tolerance=1e-6, int maxIter=10000, bool isLinear=true) {
+  void fit(Real penalty=1e-4, Real tolerance=1e-6, int maxIter=10000, bool isLinear=true) {
     this.multTolerance = multTolerance;
     this.penalty = penalty;
     this.isLinear = isLinear;
@@ -59,7 +57,6 @@ private:
   Real multTolerance = 1e-6;
   Real kktTolerance = 1e-6;
   bool isLinear = true;
-  Random rng;
 
 
   bool insidePenalty(size_t i) {
@@ -73,11 +70,6 @@ private:
     return // check KKT condition
       (multiplier < (penalty - multTolerance) && yfi < -kktTolerance) ||
       (multiplier > multTolerance             && yfi > kktTolerance);
-  }
-
-  auto f(const size_t i) {
-    auto svs = iota(this.nsamples).filter!(j => (multipliers[j] == 0.0));
-    return svs.map!(j => multipliers[j] * trainOutputs[j] * dotProduct(xs[j], xs[i])).sum - bias;
   }
 
   size_t randomIndex() {

@@ -1,35 +1,11 @@
-import std.array : array;
-import std.range : iota, take, zip;
-import std.algorithm : map, fold, count;
-import std.math : sgn;
+import std.range : iota, zip;
+import std.algorithm : count, map;
 import std.stdio : writeln, writef;
 
-import mir.ndslice : sliced;
-import mir.random : unpredictableSeed, Random;
-import mir.random.algorithm : range;
-import mir.random.variable : Bernoulli2Variable, UniformVariable, NormalVariable;
+import tensor;
+import kernel;
+import optimizer;
 
-import optimizer : SMO;
-
-
-auto randNormal(S ...)(S shape) {
-  auto len = [shape].fold!((a, b) => a * b);
-  auto rng = Random(unpredictableSeed);
-  return rng
-    .range(NormalVariable!double(0, 1))
-    .take(len)
-    .array.sliced(shape);
-}
-
-auto randBin(S ...)(S shape) {
-  auto len = [shape].fold!((a, b) => a * b);
-  auto rng = Random(unpredictableSeed);
-  return rng
-    .range(Bernoulli2Variable.init)
-    .take(len)
-    .map!(a => a.sgn!double * 2 - 1)
-    .array.sliced(shape);
-}
 
 auto accuracy(R1, R2)(R1 actual, R2 expect) {
   assert(actual.length == expect.length);
@@ -37,18 +13,32 @@ auto accuracy(R1, R2)(R1 actual, R2 expect) {
   return ok / expect.length;
 }
 
+void plotSurface(C, Xs)(C svm, Xs xs, size_t resolution=100) {
+  import ggplotd.aes : aes;
+  import ggplotd.geom : geomPolygon;
+  import ggplotd.ggplotd : GGPlotD, putIn;
+
+  auto points = iota(svm.nsamples).map!(i => [xs[i, 0], xs[i, 1], svm.decision_function(xs[i].ptr)]);
+  auto gg = points
+    .map!((a) => aes!("x", "y", "colour")(a[0], a[1], a[2]))
+    .geomPolygon
+    .putIn(GGPlotD());
+  gg.save( "polygon.png" );
+}
 
 void main() {
-  auto nsamples = 10;
-  auto ndim = 100;
+  auto nsamples = 50;
+  auto ndim = 2;
   auto xs = randNormal(nsamples, ndim);
   auto ys = randBin(nsamples);
 
-  auto svm = new SMO(xs, ys);
+  auto svm = new SMO!gaussianKernel(xs, ys);
   svm.fit();
   auto pred = iota(nsamples).map!(i => svm.decision_function(xs[i].ptr).sgn);
   writeln("\nfitting result:");
   writeln(ys);
   writeln(pred);
   writef("accuracy: %f\n", accuracy(pred, ys));
+  plotSurface(svm, xs);
 }
+

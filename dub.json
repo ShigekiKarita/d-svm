@@ -7,7 +7,11 @@
     "copyright": "Copyright © 2017, karita",
     "license": "Boost",
     "dependencies": {
-        "mir": "~>0.22.0"
+        "mir": "~>0.22.0",
+        "ggplotd": ">=0.4.5"
+    },
+    "subConfigurations": {
+        "ggplotd": "ggplotd-gtk"
     },
     "importPaths": ["./source"],
 }
