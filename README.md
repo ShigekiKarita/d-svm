@@ -2,9 +2,9 @@
 
 minimal implmentation of support vector machine for fun
 
-![gaussian]("./resource/GaussianKernel.png")
+![gaussian]("resource/GaussianKernel.png")
 
-![linear]("./resource/LinearKernel.png")
+![linear]("resource/LinearKernel.png")
 
 try `dub run` to reproduce these.
 
