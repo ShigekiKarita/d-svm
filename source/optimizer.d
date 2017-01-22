@@ -2,7 +2,6 @@ import std.variant : Algebraic;
 import std.range : iota, enumerate, generate, take;
 import std.algorithm : map, sum, filter;
 import std.math : fabs;
-import std.stdio : writeln, writef;
 
 import mir.ndslice : Slice, sliced;
 import mir.random : unpredictableSeed, Random;
@@ -20,7 +19,7 @@ class SMO(alias kernel, Real = double) : SVM!(kernel, Real) {
     super(args);
   }
 
-  void fit(Real penalty=1e-4, Real tolerance=1e-6, int maxIter=10000, bool isLinear=true) {
+  void fit(Real penalty=1.0, Real tolerance=1e-6, int maxIter=10000, bool isLinear=true) {
     this.multTolerance = multTolerance;
     this.penalty = penalty;
     this.isLinear = isLinear;
@@ -39,7 +38,7 @@ class SMO(alias kernel, Real = double) : SVM!(kernel, Real) {
       } else if (nchanged == 0) {
         isAll = true;
       }
-      writef("%d,", nchanged);
+      // writef("%d,", nchanged);
     }
 
     // get support vectors
@@ -57,7 +56,6 @@ private:
   Real multTolerance = 1e-6;
   Real kktTolerance = 1e-6;
   bool isLinear = true;
-
 
   bool insidePenalty(size_t i) {
     const multiplier = multipliers[i];
@@ -124,6 +122,7 @@ private:
   }
 
   bool stepSMO(const size_t i, const size_t j) {
+    // TODO: clean and refactor
     if (i == j) return false;
 
     const ai_old = multipliers[i];
@@ -150,10 +149,10 @@ private:
     bool biasClip = false;
 
     if (k <= 0.0) {
-      // ai = U のときの目的関数の値
+      // get objective when multipliers[i] = U
       ai_new = U;
       aj_new = aj_old + trainOutputs[i] * trainOutputs[j] * (ai_old - ai_new);
-      multipliers[i] = ai_new; // 仮置き
+      multipliers[i] = ai_new; // to be reverted
       multipliers[j] = aj_new;
       auto v1 = f(j) + bias - trainOutputs[j] * aj_old * kjj - trainOutputs[i] * ai_old * kij;
       auto v2 = f(i) + bias - trainOutputs[j] * aj_old * kij - trainOutputs[i] * ai_old * kii;
@@ -161,10 +160,10 @@ private:
         - trainOutputs[j] * trainOutputs[i] * kij * aj_new * ai_new
         - trainOutputs[j] * aj_new * v1 - trainOutputs[i] * ai_new * v2;
 
-      // ai = V のときの目的関数の値
+      // get objective when multipliers[i] = V
       ai_new = V;
       aj_new = aj_old + trainOutputs[i] * trainOutputs[j] * (ai_old - ai_new);
-      multipliers[i] = ai_new; // 仮置き
+      multipliers[i] = ai_new; // to be reverted
       multipliers[j] = aj_new;
       v1 = f(j) + bias - trainOutputs[j] * aj_old * kjj - trainOutputs[i] * ai_old * kij;
       v2 = f(i) + bias - trainOutputs[j] * aj_old * kij - trainOutputs[i] * ai_old * kii;
@@ -183,7 +182,8 @@ private:
         ai_new = ai_old;
       }
 
-      multipliers[i] = ai_old; // 元に戻す
+      // revert
+      multipliers[i] = ai_old;
       multipliers[j] = aj_old;
     } else {
       ai_new = ai_old + (trainOutputs[i] * (Ej - currentError) / k);
@@ -201,15 +201,15 @@ private:
       return false;
     }
 
-    // multipliers[j]更新
+    // update multipliers[j]
     aj_new = aj_old + trainOutputs[i] * trainOutputs[j] * (ai_old - ai_new);
 
-    // bias更新
+    // update bias
     const old_b = bias;
     if (insidePenalty(i)) {
       bias += currentError + (ai_new - ai_old) * trainOutputs[i] * kii +
         (aj_new - aj_old) * trainOutputs[j] * kij;
-    } else if (insidePenalty(i)) {
+    } else if (insidePenalty(j)) {
       bias += Ej + (ai_new - ai_old) * trainOutputs[i] * kij +
         (aj_new - aj_old) * trainOutputs[j] * kjj;
     } else {
@@ -219,12 +219,12 @@ private:
                (aj_new - aj_old) * trainOutputs[j] * kjj) / 2.0;
     }
 
-    // err更新
+    // update errors
     foreach (n; iota(nsamples)) {
       if (n == i || n == j) {
         continue;
-      } else if (insidePenalty(i)) {
-        errors[n] = errors[n] + trainOutputs[j] * (aj_new - aj_old) * kernel(xs[j], xs[n])
+      } else if (insidePenalty(n)) {
+        errors[n] += trainOutputs[j] * (aj_new - aj_old) * kernel(xs[j], xs[n])
           + trainOutputs[i] * (ai_new - ai_old) * kernel(xs[i], xs[n])
           + old_b - bias;
       }

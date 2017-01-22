@@ -1,44 +1,83 @@
 import std.range : iota, zip;
 import std.algorithm : count, map;
-import std.stdio : writeln, writef;
+import std.random : dice;
 
 import tensor;
 import kernel;
 import optimizer;
 
 
-auto accuracy(R1, R2)(R1 actual, R2 expect) {
-  assert(actual.length == expect.length);
+auto accuracy(S, R1, R2)(S svm, R1 xs, R2 actual) {
+  auto expect = iota(actual.length).map!(i => svm.decision_function(xs[i].ptr).sgn);
   double ok = zip(actual, expect).count!"a[0] == a[1]";
   return ok / expect.length;
 }
 
-void plotSurface(C, Xs)(C svm, Xs xs, size_t resolution=100) {
-  import ggplotd.aes : aes;
-  import ggplotd.geom : geomPolygon;
-  import ggplotd.ggplotd : GGPlotD, putIn;
+void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=100) {
+  import std.algorithm; // : cartesianProduct;
+  import std.string;
+  import std.stdio : writeln;
 
-  auto points = iota(svm.nsamples).map!(i => [xs[i, 0], xs[i, 1], svm.decision_function(xs[i].ptr)]);
-  auto gg = points
-    .map!((a) => aes!("x", "y", "colour")(a[0], a[1], a[2]))
-    .geomPolygon
+  import ggplotd.aes : aes;
+  import ggplotd.geom : geomPolygon, geomPoint;
+  import ggplotd.ggplotd : GGPlotD, putIn, title;
+  import ggplotd.colour : colourGradient;
+  import ggplotd.colourspace : XYZ;
+
+  const n = svm.nsamples;
+  const xmin = minElement(xs[0..$, 0]);
+  const xmax = maxElement(xs[0..$, 0]);
+  const ymin = minElement(xs[0..$, 1]);
+  const ymax = maxElement(xs[0..$, 1]);
+  const xstep = (xmax - xmin) / resolution;
+  const ystep = (ymax - ymin) / resolution;
+  auto grid = cartesianProduct(iota(xmin, xmax, xstep), iota(ymin, ymax, ystep)).array;
+  auto gridPreds = grid.map!(i => svm.decision_function([i[0], i[1]])).array;
+  auto gpmin = minElement(gridPreds);
+  auto gpnorm = maxElement(gridPreds) - gpmin;
+
+  auto gg =
+    iota(grid.length)
+    .map!(i => aes!("x", "y", "colour", "size")(grid[i][0], grid[i][1], (gridPreds[i]- gpmin) / gpnorm, 1.0))
+    .geomPoint
     .putIn(GGPlotD());
-  gg.save( "polygon.png" );
+
+  gg = iota(n)
+    .map!(i => aes!("x", "y", "colour", "size")(xs[i,0], xs[i,1], ys[i] == 1 ? 1 : 0, 1.0))
+    .geomPoint
+    .putIn(gg);
+
+  gg = colourGradient!XYZ( "cornflowerBlue-white-crimson" )
+    .putIn(gg);
+
+  auto tstr = "%s (fit accuracy: %.2f)".format(name, accuracy(svm, xs, ys));
+  tstr.writeln;
+  gg.put(title(tstr));
+  gg.save("./resource/" ~ name ~ ".png");
 }
 
+
 void main() {
-  auto nsamples = 50;
+  auto nsamples = 200;
   auto ndim = 2;
   auto xs = randNormal(nsamples, ndim);
   auto ys = randBin(nsamples);
+  foreach (ref x, y; zip(xs, ys)) {
+    if (y == 1.0) {
+      x[0] += 2.0 * dice(0.5, 0.5) - 2.0;
+      x[0] *= 4.0;
+    } else {
+      x[1] += 2.0 * dice(0.5, 0.5) - 2.0;
+      x[1] *= 4.0;
+    }
+  }
 
-  auto svm = new SMO!gaussianKernel(xs, ys);
-  svm.fit();
-  auto pred = iota(nsamples).map!(i => svm.decision_function(xs[i].ptr).sgn);
-  writeln("\nfitting result:");
-  writeln(ys);
-  writeln(pred);
-  writef("accuracy: %f\n", accuracy(pred, ys));
-  plotSurface(svm, xs);
+  auto gsvm = new SMO!gaussianKernel(xs, ys);
+  gsvm.fit();
+  plotSurface("GaussianKernel", gsvm, xs, ys);
+
+  auto lsvm = new SMO!linearKernel(xs, ys);
+  lsvm.fit();
+  plotSurface("LinearKernel", lsvm, xs, ys);
 }
 

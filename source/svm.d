@@ -35,6 +35,11 @@ class SVM(alias kernel, Real) {
     return svIndices.map!(i => weights[i] * kernel(xs[i], t)).sum - bias;
   }
 
+  Real decision_function(const Real[] testInput) {
+    return svIndices.map!(i => weights[i] * kernel(xs[i], testInput)).sum - bias;
+  }
+
+
   const size_t nsamples, ndim;
   // TODO: make this ndslice
   const Real[] trainInputs, trainOutputs;
