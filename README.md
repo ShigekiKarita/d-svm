@@ -2,9 +2,9 @@
 
 minimal implmentation of support vector machine for fun
 
-![gaussian](resource/GaussianKernel.png)
+![gaussian](resource/gaussianKernel.png)
 
-![linear](resource/LinearKernel.png)
+![linear](resource/linearKernel.png)
 
 ![polynomial](resource/polynomialKernel.png)
 
