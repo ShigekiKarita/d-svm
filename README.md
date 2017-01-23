@@ -6,6 +6,8 @@ minimal implmentation of support vector machine for fun
 
 ![linear](resource/LinearKernel.png)
 
+![polynomial](resource/polynomialKernel.png)
+
 try `dub run` to reproduce these.
 
 

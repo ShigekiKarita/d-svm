@@ -13,6 +13,10 @@ auto accuracy(S, R1, R2)(S svm, R1 xs, R2 actual) {
   return ok / expect.length;
 }
 
+double sigmoid(double x, double margin=0.1) {
+  return 1.0 / (1.0 + exp(x)) * (1.0 - margin * 2.0) + margin;
+}
+
 void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=100) {
   import std.algorithm; // : cartesianProduct;
   import std.string;
@@ -39,12 +43,12 @@ void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=
 
   auto gg =
     iota(grid.length)
-    .map!(i => aes!("x", "y", "colour", "size")(grid[i][0], grid[i][1], (gridPreds[i]- gpmin) / gpnorm, 1.0))
+    .map!(i => aes!("x", "y", "colour", "size")(grid[i][0], grid[i][1], sigmoid(gridPreds[i]), 1.0))
     .geomPoint
     .putIn(GGPlotD());
 
   gg = iota(n)
-    .map!(i => aes!("x", "y", "colour", "size")(xs[i,0], xs[i,1], ys[i] == 1 ? 1 : 0, 1.0))
+    .map!(i => aes!("x", "y", "colour", "size")(xs[i,0], xs[i,1], ys[i] == 1 ? 0 : 1, 1.0))
     .geomPoint
     .putIn(gg);
 
@@ -85,6 +89,6 @@ void main() {
 
   exec!"gaussianKernel";
   exec!"linearKernel";
-  exec!"multinomialKernel";
+  exec!"polynomialKernel";
 }
 
