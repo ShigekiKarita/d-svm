@@ -17,6 +17,7 @@ void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=
   import std.algorithm; // : cartesianProduct;
   import std.string;
   import std.stdio : writeln;
+  import std.array : array;
 
   import ggplotd.aes : aes;
   import ggplotd.geom : geomPolygon, geomPoint;
@@ -72,12 +73,18 @@ void main() {
     }
   }
 
-  auto gsvm = new SMO!gaussianKernel(xs, ys);
-  gsvm.fit();
-  plotSurface("GaussianKernel", gsvm, xs, ys);
+  void exec(string name)() {
+    import std.datetime;
+    import std.stdio;
+    import std.conv : to;
+    mixin("auto svm = new SMO!(" ~ name ~ ")(xs, ys);");
+    auto r = benchmark!(() => svm.fit())(1);
+    writeln(to!Duration(r[0]));
+    plotSurface(name, svm, xs, ys);
+  }
 
-  auto lsvm = new SMO!linearKernel(xs, ys);
-  lsvm.fit();
-  plotSurface("LinearKernel", lsvm, xs, ys);
+  exec!"gaussianKernel";
+  exec!"linearKernel";
+  exec!"multinomialKernel";
 }
 
