@@ -13,8 +13,8 @@ auto accuracy(S, R1, R2)(S svm, R1 xs, R2 actual) {
   return ok / expect.length;
 }
 
-double sigmoid(double x, double margin=0.1) {
-  return 1.0 / (1.0 + exp(x)) * (1.0 - margin * 2.0) + margin;
+double sigmoid(double x, double scale=0.1, double margin=0.05) {
+  return 1.0 / (1.0 + exp(scale * x)) * (1.0 - margin * 2.0) + margin;
 }
 
 void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=100) {
