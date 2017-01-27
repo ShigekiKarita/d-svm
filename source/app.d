@@ -61,7 +61,7 @@ void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=
   gg.save("./resource/" ~ name ~ ".png");
 }
 
-
+version(unittest) {} else {
 void main() {
   auto nsamples = 200;
   auto ndim = 2;
@@ -92,3 +92,4 @@ void main() {
   exec!"polynomialKernel";
 }
 
+} // not unittest
