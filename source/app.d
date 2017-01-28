@@ -1,6 +1,7 @@
 import std.range : iota, zip;
 import std.algorithm : count, map;
 import std.random : dice;
+import std.math;
 
 import tensor;
 import kernel;
