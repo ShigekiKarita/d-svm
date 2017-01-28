@@ -14,8 +14,16 @@ auto accuracy(S, R1, R2)(S svm, R1 xs, R2 actual) {
   return ok / expect.length;
 }
 
-double sigmoid(double x, double scale=0.1, double margin=0.05) {
-  return 1.0 / (1.0 + exp(scale * x)) * (1.0 - margin * 2.0) + margin;
+auto sigmoid(double d) {
+  return 1.0 / (1.0 + exp(-d));
+}
+
+auto rescale(double[] gridPreds) {
+  import std.algorithm;
+  auto gpmin = minElement(gridPreds);
+  auto gpmax = maxElement(gridPreds);
+  auto gpabs = max(gpmin.fabs, gpmax.fabs) * 2;
+  return gridPreds.map!(p => p / gpabs + 0.5);
 }
 
 void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=100) {
@@ -38,18 +46,16 @@ void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=
   const xstep = (xmax - xmin) / resolution;
   const ystep = (ymax - ymin) / resolution;
   auto grid = cartesianProduct(iota(xmin, xmax, xstep), iota(ymin, ymax, ystep)).array;
-  auto gridPreds = grid.map!(i => svm.decision_function([i[0], i[1]])).array;
-  auto gpmin = minElement(gridPreds);
-  auto gpnorm = maxElement(gridPreds) - gpmin;
+  auto gridPreds = grid.map!(i => svm.decision_function([i[0], i[1]])).array.rescale;
 
   auto gg =
     iota(grid.length)
-    .map!(i => aes!("x", "y", "colour", "size")(grid[i][0], grid[i][1], sigmoid(gridPreds[i]), 1.0))
+    .map!(i => aes!("x", "y", "colour", "size")(grid[i][0], grid[i][1], gridPreds[i], 1.0))
     .geomPoint
     .putIn(GGPlotD());
 
   gg = iota(n)
-    .map!(i => aes!("x", "y", "colour", "size")(xs[i,0], xs[i,1], ys[i] == 1 ? 0 : 1, 1.0))
+    .map!(i => aes!("x", "y", "colour", "size")(xs[i,0], xs[i,1], ys[i] == 1 ? 1 : 0, 1.0))
     .geomPoint
     .putIn(gg);
 
