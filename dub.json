@@ -7,11 +7,21 @@
     "copyright": "Copyright © 2017, karita",
     "license": "Boost",
     "dependencies": {
-        "mir": { "path": "../mir/" },
+        "mir": {
+            "path": "./mir"
+        },
         "ggplotd": ">=0.4.5"
     },
-    "subConfigurations": {
-        "ggplotd": "ggplotd-gtk"
-    },
     "importPaths": ["./source"],
+    "configurations": [
+        {
+            "name": "default",
+            "targetType": "executable"
+        },
+        {
+            "name": "local-cairo",
+            "targetType": "executable",
+            "lflags": ["/home/skarita/tool/cairo-1.15.4/usr/lib/libcairo.so"]
+        }
+    ],
 }

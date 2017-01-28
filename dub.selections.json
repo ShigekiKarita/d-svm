@@ -9,7 +9,7 @@
 		"dunit": "1.0.14",
 		"ggplotd": "1.1.3",
 		"gtk-d": "3.3.1",
-		"mir": "0.22.0",
+		"mir": {"path":"mir"},
 		"mir-internal": "0.0.2",
 		"mir-math": "0.0.1",
 		"mir-random": "0.0.1",
