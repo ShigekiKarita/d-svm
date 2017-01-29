@@ -14,10 +14,6 @@ auto accuracy(S, R1, R2)(S svm, R1 xs, R2 actual) {
   return ok / expect.length;
 }
 
-auto sigmoid(double d) {
-  return 1.0 / (1.0 + exp(-d));
-}
-
 auto rescale(double[] gridPreds) {
   import std.algorithm;
   auto gpmin = minElement(gridPreds);
