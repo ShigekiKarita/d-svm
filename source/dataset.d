@@ -3,14 +3,32 @@ import std.process : executeShell;
 import std.string : format;
 import std.file;
 import std.stdio;
+import std.array : array;
+import std.algorithm : map;
+import std.range : stride;
+import std.math : ceil;
+
+import mir.ndslice : sliced;
+
 
 class Mnist {
   immutable ndim = 28 ^^ 2;
+  const size_t nsamples;
   ubyte[] target;
-  ubyte[][] data;
+  ubyte[] data;
+
+  auto xs(size_t nstride = 3, double scale = 1.0 / 255) pure {
+    const newdim = cast(size_t) ceil(cast(double) ndim / nstride);
+    return data.stride(nstride).map!(i => scale * i).array.sliced(nsamples, newdim);
+  }
+
+  auto ys(int c = 0) pure {
+    return target.map!(c => c == 0 ? 1.0 : -1.0).array.sliced(nsamples);
+  }
 
   this(string prefix, size_t nsamples, string root = "./resource/") {
     // TODO: read nsamples from file
+    this.nsamples = nsamples;
     const image = root ~ prefix ~ "-images.idx3-ubyte";
     const label = root ~ prefix ~ "-labels.idx1-ubyte";
     if (!image.exists || !label.exists) {
@@ -31,11 +49,10 @@ class Mnist {
 
     flabel.seek(8);
     fimage.seek(16);
-    for (size_t n = 0; n < nsamples; ++n) {
-      data[n] = fimage.rawRead(new ubyte[ndim]);
-    }
+    data = fimage.rawRead(new ubyte[nsamples * ndim]);
     target = flabel.rawRead(new ubyte[nsamples]);
   }
+  
 
   static ref auto train() {
     return new Mnist("train", 60000);

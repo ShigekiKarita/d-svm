@@ -35,7 +35,7 @@ private:
   }
   Real logPosterior(Y yi, X xi) {
     // actually upper-bound of log-posterior
-    return params.ys.map!(y => yLoss(y, yi) + score(y, xi)).maxElement - score(yi, xi);
+    return maxElement(params.ys.map!(y => yLoss(y, yi) + score(y, xi))) - score(yi, xi);
   }
   Real wRisk(Tuple!(Y, X)[] yxs) {
     // i.e. objective function
@@ -63,8 +63,28 @@ class BinarySVM(Real=double) : StructuralSVM!(Real, Real, Real[]) {
   }
 }
 
+/*
+class MultinomialSVM(Real=double) : StructuralSVM!(Real, Real, Real[]) {
+  this(size_t ndim, size_t nclass) {
+    super(ndim);
+    params.ys = iota(nclass);
+  }
+
+  override Real logPosterior(Y yi, X xi) {
+    return
+  }
+  // override Real[] jointFeature(Y y, X x) {
+  //   return x.map!(xn => xn * y / 2).array;
+  // }
+  // override Real yLoss(Y expect, Y actual) {
+  //   return 1.0 - (expect == actual ? 1.0 : 0.0);
+  // }
+}
+*/
+
 unittest {
   import std.stdio;
-  auto svm = new BinarySVM!double(2);
+  auto bsvm = new BinarySVM!double(2);
+  // auto msvm = new MultinomialSVM!double(2, 10);
   writeln("success");
 }

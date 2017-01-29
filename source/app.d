@@ -2,6 +2,9 @@ import std.range : iota, zip;
 import std.algorithm : count, map;
 import std.random : dice;
 import std.math;
+import std.stdio;
+import std.datetime;
+import std.conv : to;
 
 import tensor;
 import kernel;
@@ -64,8 +67,7 @@ void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=
   gg.save("./resource/" ~ name ~ ".png");
 }
 
-version(unittest) {} else {
-void main() {
+void testArtificialData() {
   auto nsamples = 200;
   auto ndim = 2;
   auto xs = randNormal(nsamples, ndim);
@@ -81,9 +83,6 @@ void main() {
   }
 
   void exec(string name)() {
-    import std.datetime;
-    import std.stdio;
-    import std.conv : to;
     mixin("auto svm = new SMO!(" ~ name ~ ")(xs, ys);");
     auto r = benchmark!(() => svm.fit())(1);
     writeln(to!Duration(r[0]));
@@ -95,4 +94,24 @@ void main() {
   exec!"polynomialKernel";
 }
 
+void testMnist() {
+  // TODO: impl one vs rest SVM wrapper
+  import dataset;
+
+  writeln("small MNIST test");
+  auto train = new Mnist("train", 100);
+  auto svm = new SMO!gaussianKernel(train.xs, train.ys);
+
+  auto r = benchmark!(() => svm.fit())(1);
+  writeln(to!Duration(r[0]));
+
+  auto test = Mnist.test();
+  writef("accuracy %f\n", accuracy(svm, test.xs, test.ys));
+}
+
+version(unittest) {} else {
+  void main() {
+    testArtificialData();
+    testMnist();
+  }
 } // not unittest

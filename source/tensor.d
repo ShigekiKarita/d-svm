@@ -4,7 +4,7 @@ import std.conv : to;
 import std.algorithm : fold, map;
 import std.math : sgn;
 
-import mir.ndslice : sliced;
+import mir.ndslice; // : sliced;
 import mir.random : unpredictableSeed, Random;
 import mir.random.algorithm : range;
 import mir.random.variable : Bernoulli2Variable, UniformVariable, NormalVariable;
