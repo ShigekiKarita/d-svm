@@ -5,7 +5,7 @@ import std.math : fabs;
 
 import mir.ndslice : Slice, sliced;
 import mir.random : unpredictableSeed, Random;
-import mir.random.algorithm : range;
+import mir.random.algorithm; // : range;
 import mir.random.variable : Bernoulli2Variable, UniformVariable, NormalVariable;
 
 import std.algorithm;
@@ -14,15 +14,45 @@ import std.math : fabs;
 import svm : SVM;
 
 
+class OneVsRestSMO(alias Kernel, Real = double) {
+  import std.array : array;
+
+  SMO!Kernel[] svms;
+  const size_t nclass;
+
+  this(size_t nclass, Slice!(2, Real*) inputs, Slice!(1, Real*) outputs, ulong seed=unpredictableSeed) {
+    this.nclass = nclass;
+    svms.length = nclass;
+    foreach (i, ref s; svms) {
+      auto bins = outputs.map!(c => c == i ? 1.0 : -1.0).array.sliced(outputs.length);
+      s = new SMO!Kernel(inputs, bins);
+    }
+  }
+
+  ref auto fit(Args ...)(Args args) {
+    foreach(i, ref s; svms) {
+      // import std.stdio;
+      // writefln("%d-th svm", i);
+      s.fit(args);
+    }
+    return this;
+  }
+
+  auto decision_function(const Real* testInput) {
+    return svms.map!(s => s.decision_function(testInput)).maxIndex;
+  }
+}
+
+
+
 class SMO(alias kernel, Real = double) : SVM!(kernel, Real) {
   this(Args ...)(Args args) {
     super(args);
   }
 
-  void fit(Real penalty=1.0, Real tolerance=1e-6, int maxIter=10000, bool isLinear=true) {
+  ref auto fit(Real penalty=1.0, int maxIter=10000, Real tolerance=1e-6) {
     this.multTolerance = multTolerance;
     this.penalty = penalty;
-    this.isLinear = isLinear;
 
     bool isAll = true;
     foreach (_; iota(maxIter)) {
@@ -50,12 +80,13 @@ class SMO(alias kernel, Real = double) : SVM!(kernel, Real) {
     foreach (i; svIndices) {
       weights[i] = trainOutputs[i] * multipliers[i];
     }
+
+    return this;
   }
 
 private:
   Real multTolerance = 1e-6;
   Real kktTolerance = 1e-6;
-  bool isLinear = true;
 
   bool insidePenalty(size_t i) {
     const multiplier = multipliers[i];
@@ -238,3 +269,5 @@ private:
     return true;
   }
 }
+
+

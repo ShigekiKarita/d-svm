@@ -11,8 +11,10 @@ import kernel;
 import optimizer;
 
 
-auto accuracy(S, R1, R2)(S svm, R1 xs, R2 actual) {
-  auto expect = iota(actual.length).map!(i => svm.decision_function(xs[i].ptr).sgn);
+auto accuracy(R1, R2)(R1 expect, R2 actual) {
+  if (expect.length != actual.length) {
+    throw new Exception("expect.length != actual.length");
+  }
   double ok = zip(actual, expect).count!"a[0] == a[1]";
   return ok / expect.length;
 }
@@ -61,7 +63,8 @@ void plotSurface(C, Xs, Ys)(string name, C svm, Xs xs, Ys ys, size_t resolution=
   gg = colourGradient!XYZ( "cornflowerBlue-white-crimson" )
     .putIn(gg);
 
-  auto tstr = "%s (fit accuracy: %.2f)".format(name, accuracy(svm, xs, ys));
+  auto expect = xs.map!(x => svm.decision_function(x.ptr).sgn);
+  auto tstr = "%s (fit accuracy: %.2f)".format(name, accuracy(expect, ys));
   tstr.writeln;
   gg.put(title(tstr));
   gg.save("./resource/" ~ name ~ ".png");
@@ -99,19 +102,30 @@ void testMnist() {
   import dataset;
 
   writeln("small MNIST test");
-  auto train = new Mnist("train", 100);
-  auto svm = new SMO!gaussianKernel(train.xs, train.ys);
-
-  auto r = benchmark!(() => svm.fit())(1);
+  const nstride = 1;
+  auto train = new Mnist("train", 400);
+  auto ovr = new OneVsRestSMO!gaussianKernel(10, train.xs(nstride), train.ys);
+  auto r = benchmark!(() => ovr.fit())(1);
   writeln(to!Duration(r[0]));
 
-  auto test = Mnist.test();
-  writef("accuracy %f\n", accuracy(svm, test.xs, test.ys));
+  auto ytrain = train.xs(nstride).map!(x => ovr.decision_function(x.ptr));
+  writef("train accuracy %f\n", accuracy(ytrain, train.ys));
+
+  auto test = new Mnist("t10k", 100);
+  auto expect = test.xs(nstride).map!(x => ovr.decision_function(x.ptr));
+  writef("test accuracy %f\n", accuracy(expect, test.ys));
+
+  // auto svm = new SMO!gaussianKernel(train.xs, train.ys);
+  // auto r = benchmark!(() => svm.fit())(1);
+  // writeln(to!Duration(r[0]));
+  // auto test = Mnist.test();
+  // auto expect = test.xs.map!(x => svm.decision_function(x.ptr).sgn);
+  // writef("accuracy %f\n", accuracy(expect, test.ys));
 }
 
 version(unittest) {} else {
   void main() {
-    testArtificialData();
+    // testArtificialData();
     testMnist();
   }
 } // not unittest

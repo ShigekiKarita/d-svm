@@ -17,8 +17,8 @@ class Mnist {
   ubyte[] target;
   ubyte[] data;
 
-  auto xs(size_t nstride = 3, double scale = 1.0 / 255) pure {
-    const newdim = cast(size_t) ceil(cast(double) ndim / nstride);
+  auto xs(size_t nstride = 1, double scale = 1.0 / 255) pure {
+    const newdim = ndim / nstride; // cast(size_t) ceil(cast(double) ndim / nstride);
     return data.stride(nstride).map!(i => scale * i).array.sliced(nsamples, newdim);
   }
 
