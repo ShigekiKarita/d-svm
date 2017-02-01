@@ -13,6 +13,7 @@ struct SVMParameters(Real, Y, X) {
 }
 
 abstract class StructuralSVM(RealType, YType, XType) {
+  // FIXME: YType -> ElementType!Ys
   alias Real = RealType;
   alias Y = YType;
   alias X = XType;
@@ -29,11 +30,18 @@ abstract class StructuralSVM(RealType, YType, XType) {
 private:
   P params;
 
+  Real margin(X x, Y[] trainYs) {
+    // this is just for debug
+    return trainYs.map!(y => score(y, x)).minElement
+       - params.ys.map!(y => score(y, x)).maxElement;
+  }
   Real wEnergy() {
+    // a.k.a. 0.5 * |W|^2
     // i.e. logPrior of spherical Gaussian N(0, I);
     return params.weight.dotProduct(params.weight) / 2;
   }
   Real logPosterior(Y yi, X xi) {
+    // a.k.a. constraint or slack variable \eta_t
     // actually upper-bound of log-posterior
     return maxElement(params.ys.map!(y => yLoss(y, yi) + score(y, xi))) - score(yi, xi);
   }
@@ -63,28 +71,41 @@ class BinarySVM(Real=double) : StructuralSVM!(Real, Real, Real[]) {
   }
 }
 
-/*
-class MultinomialSVM(Real=double) : StructuralSVM!(Real, Real, Real[]) {
-  this(size_t ndim, size_t nclass) {
-    super(ndim);
-    params.ys = iota(nclass);
-  }
-
-  override Real logPosterior(Y yi, X xi) {
-    return
-  }
-  // override Real[] jointFeature(Y y, X x) {
-  //   return x.map!(xn => xn * y / 2).array;
-  // }
-  // override Real yLoss(Y expect, Y actual) {
-  //   return 1.0 - (expect == actual ? 1.0 : 0.0);
-  // }
-}
-*/
-
 unittest {
   import std.stdio;
   auto bsvm = new BinarySVM!double(2);
   // auto msvm = new MultinomialSVM!double(2, 10);
   writeln("success");
+}
+
+
+class NslackCuttingPlace(alias SVM, Real = double, Xs, Ys) {
+  Xs xsTrain;
+  Ys ysTrain;
+  ElementType!Ys[] constraints;
+  Real[] multipliers;
+  SVM svm;
+
+  this(SVM svm, Xs xs, Ys ys) {
+    this.svm = svm;
+    this.xsTrain = xsTrain;
+    this.ysTrain = ysTrain;
+    this.multipliers.length = ysTrain.length;
+  }
+
+  void fit(Real tolerance = 1e-5) {
+    auto ysParam = svm.param.ys;
+    bool changed = false;
+
+    while (!changed) {
+      foreach (xt, yt, m; zip(xsTrain, ysTrain, multipliers)) {
+        auto ymax = ysParam.map!(yp => svm.yLoss(yp, yt) + svm.score(yp, xt)).maxElement;
+        if (ymax > m + tolerance) {
+          changed = true; // FIXME: see below.
+          constraints ~= [ymax]; // FIXME: needs to check doubling?
+          // TODO: solve QP as (w, ms) = argmin svm.wRisk();
+        }
+      }
+    }
+  }
 }
