@@ -13,7 +13,6 @@ try `dub run` to reproduce these.
 
 ## TODO
 
-+ more kernels (multinomial, Fisher)
 + more optimizers (SGD, DCDM)
-+ more SVM variants (regression, multi-class, one-class, structual)
++ more SVM variants (regression, one-class, structual)
 + tests
