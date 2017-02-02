@@ -109,3 +109,5 @@ class NslackCuttingPlace(alias SVM, Real = double, Xs, Ys) {
     }
   }
 }
+
+// maybe subgradient descent is easier
